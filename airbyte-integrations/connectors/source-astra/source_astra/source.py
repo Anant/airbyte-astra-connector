@@ -7,6 +7,9 @@ import json
 from datetime import datetime
 from typing import Dict, Generator
 
+import numbers
+from source_astra.astra_client import AstraClient
+
 from airbyte_cdk.logger import AirbyteLogger
 from airbyte_cdk.models import (
     AirbyteCatalog,
@@ -35,7 +38,17 @@ class SourceAstra(Source):
         :return: AirbyteConnectionStatus indicating a Success or Failure
         """
         try:
-            # Not Implemented
+            index = AstraClient(
+                astra_id=config["database_id"],
+                astra_region=config["database_region"],
+                astra_application_token=config["application_token"],
+                keyspace_name=config["keyspace_name"],
+                collection_name=config["collection_name"],
+                embedding_dim=config["embedding_dimension"],
+                similarity_function=config["similarity_function"],
+                )
+
+            index.find_index()
 
             return AirbyteConnectionStatus(status=Status.SUCCEEDED)
         except Exception as e:
@@ -60,14 +73,49 @@ class SourceAstra(Source):
         """
         streams = []
 
-        stream_name = "TableName"  # Example
-        json_schema = {  # Example
+        stream_name = config["keyspace_name"]+"."+config["collection_name"]
+
+        index = AstraClient(
+            astra_id=config["database_id"],
+            astra_region=config["database_region"],
+            astra_application_token=config["application_token"],
+            keyspace_name=config["keyspace_name"],
+            collection_name=config["collection_name"],
+            embedding_dim=config["embedding_dimension"],
+            similarity_function=config["similarity_function"],
+            )
+        
+        def get_json_schema_type(instance):
+            if isinstance(instance, dict):
+                return { "type": "object" }
+            if isinstance(instance, list):
+                return { "type": "array", "items": get_json_schema_type(instance[0])}
+            if isinstance(instance, bool):
+                return { "type": "boolean" }
+            if isinstance(instance, int):
+                return { "type": "integer"}
+            if isinstance(instance, float):
+                return { "type": "number"}
+            if isinstance(instance, str):
+                return { "type": "string"}
+            return { "type": "null"}
+
+        document_types = []
+        for doc in index.find_documents({}):
+            document_types.append([{"column_name": key , "column_type": doc[key]} for key in doc.keys()])
+
+        deduped_document_types = [dict(t) for t in {tuple(d.items()) for d in [column for list in document_types for column in list]}]
+        json_schema_properties = {}
+        for column in deduped_document_types:
+            json_schema_properties[str(column["column_name"])] = {
+                "type": get_json_schema_type(column)
+            }
+
+        json_schema = { 
             "$schema": "http://json-schema.org/draft-07/schema#",
             "type": "object",
-            "properties": {"columnName": {"type": "string"}},
+            "properties": json_schema_properties
         }
-
-        # Not Implemented
 
         streams.append(AirbyteStream(name=stream_name, json_schema=json_schema))
         return AirbyteCatalog(streams=streams)
