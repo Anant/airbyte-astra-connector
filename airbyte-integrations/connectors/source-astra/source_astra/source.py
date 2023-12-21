@@ -142,12 +142,20 @@ class SourceAstra(Source):
 
         :return: A generator that produces a stream of AirbyteRecordMessage contained in AirbyteMessage object.
         """
-        stream_name = "TableName"  # Example
-        data = {"columnName": "Hello World"}  # Example
+        stream_name = config["keyspace_name"]+"."+config["collection_name"]
 
-        # Not Implemented
+        index = AstraClient(
+            astra_id=config["database_id"],
+            astra_region=config["database_region"],
+            astra_application_token=config["application_token"],
+            keyspace_name=config["keyspace_name"],
+            collection_name=config["collection_name"],
+            embedding_dim=config["embedding_dimension"],
+            similarity_function=config["similarity_function"],
+            )
 
-        yield AirbyteMessage(
-            type=Type.RECORD,
-            record=AirbyteRecordMessage(stream=stream_name, data=data, emitted_at=int(datetime.now().timestamp()) * 1000),
-        )
+        for data in index.find_documents({}):    
+            yield AirbyteMessage(
+                type=Type.RECORD,
+                record=AirbyteRecordMessage(stream=stream_name, data=data, emitted_at=int(datetime.now().timestamp()) * 1000),
+            )
