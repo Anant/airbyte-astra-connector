@@ -72,7 +72,7 @@ class AstraIndexer(Indexer):
     def check(self) -> Optional[str]:
         try:
             collections = self.client.find_collections()
-            collection = next(filter(lambda f: f.name == self.config.collection, collections), None)
+            collection = next(filter(lambda f: f["name"] == self.config.collection, collections), None)
             if collection is None:
                 return f"{self.config.collection} collection does not exist in {self.config.astra_db_keyspace} keyspace."
 

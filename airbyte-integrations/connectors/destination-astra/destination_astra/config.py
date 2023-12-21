@@ -7,7 +7,7 @@ from pydantic import BaseModel, Field
 
 
 class AstraIndexingModel(BaseModel):
-    astra_db_app_token = Field(
+    astra_db_app_token: str = Field(
         ...,
         title="AstraDB Application Token",
         airbyte_secret=True,
