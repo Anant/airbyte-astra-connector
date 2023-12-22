@@ -103,13 +103,9 @@ class SourceAstra(Source):
         document_types = []
         for doc in index.find_documents({}):
             document_types.append([{"column_name": key , "column_type": doc[key]} for key in doc.keys()])
-
-        deduped_document_types = [dict(t) for t in {tuple(d.items()) for d in [column for list in document_types for column in list]}]
         json_schema_properties = {}
-        for column in deduped_document_types:
-            json_schema_properties[str(column["column_name"])] = {
-                "type": get_json_schema_type(column)
-            }
+        for column in [column for list in document_types for column in list]:
+            json_schema_properties[str(column["column_name"])] = get_json_schema_type(column["column_type"])
 
         json_schema = { 
             "$schema": "http://json-schema.org/draft-07/schema#",
@@ -117,7 +113,7 @@ class SourceAstra(Source):
             "properties": json_schema_properties
         }
 
-        streams.append(AirbyteStream(name=stream_name, json_schema=json_schema))
+        streams.append(AirbyteStream(name=stream_name, json_schema=json_schema, supported_sync_modes = ["full_refresh"]))
         return AirbyteCatalog(streams=streams)
 
     def read(
