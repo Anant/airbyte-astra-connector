@@ -11,15 +11,17 @@ from destination_astra.config import ConfigModel
 from destination_astra.destination import DestinationAstra
 
 
-class TestDestinationPinecone(unittest.TestCase):
+class TestDestinationAstra(unittest.TestCase):
     def setUp(self):
         self.config = {
             "processing": {"text_fields": ["str_col"], "metadata_fields": [], "chunk_size": 1000},
             "embedding": {"mode": "openai", "openai_key": "mykey"},
             "indexing": {
-                "pinecone_key": "mykey",
-                "pinecone_environment": "myenv",
-                "index": "myindex",
+                "astra_db_app_token": "mytoken",
+                "astra_db_id": "myid",
+                "astra_db_region": "myregion",
+                "astra_db_keyspace": "mykeyspace",
+                "collection": "mycollection",
             },
         }
         self.config_model = ConfigModel.parse_obj(self.config)
@@ -43,8 +45,8 @@ class TestDestinationPinecone(unittest.TestCase):
         mock_embedder.check.assert_called_once()
         mock_indexer.check.assert_called_once()
 
-    @patch("destination_pinecone.destination.AstraIndexer")
-    @patch("destination_pinecone.destination.create_from_config")
+    @patch("destination_astra.destination.AstraIndexer")
+    @patch("destination_astra.destination.create_from_config")
     def test_check_with_errors(self, MockedEmbedder, MockedAstraIndexer):
         mock_embedder = Mock()
         mock_indexer = Mock()
@@ -66,9 +68,9 @@ class TestDestinationPinecone(unittest.TestCase):
         mock_embedder.check.assert_called_once()
         mock_indexer.check.assert_called_once()
 
-    @patch("destination_pinecone.destination.Writer")
-    @patch("destination_pinecone.destination.AstraIndexer")
-    @patch("destination_pinecone.destination.create_from_config")
+    @patch("destination_astra.destination.Writer")
+    @patch("destination_astra.destination.AstraIndexer")
+    @patch("destination_astra.destination.create_from_config")
     def test_write(self, MockedEmbedder, MockedAstraIndexer, MockedWriter):
         mock_embedder = Mock()
         mock_indexer = Mock()
