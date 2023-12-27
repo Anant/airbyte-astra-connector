@@ -35,11 +35,8 @@ class AstraIndexer(Indexer):
         self.embedding_dimensions = embedding_dimensions
 
     def _create_collection(self):
-        try:
-            if self.client.find_collection(self.config.collection) is False:
-                self.client.create_collection(self.config.collection)
-        except Exception:
-            return None
+        if self.client.find_collection(self.config.collection) is False:
+            self.client.create_collection(self.config.collection)
 
     def pre_sync(self, catalog: ConfiguredAirbyteCatalog):
         self._create_collection()
@@ -66,11 +63,11 @@ class AstraIndexer(Indexer):
 
         for batch in serial_batches:
             results = [chunk for chunk in batch]
-            self.client.insert_documents(self.config.collection, results)
+            self.client.insert_documents(collection_name=self.config.collection, documents=results)
 
     def delete(self, delete_ids, namespace, stream):
         if len(delete_ids) > 0:
-            self.client.delete_documents(self.config.collection, filter={METADATA_RECORD_ID_FIELD: {"$in": delete_ids}})
+            self.client.delete_documents(collection_name=self.config.collection, filter={METADATA_RECORD_ID_FIELD: {"$in": delete_ids}})
 
     def check(self) -> Optional[str]:
         try:
@@ -83,6 +80,10 @@ class AstraIndexer(Indexer):
             if actual_dimension != self.embedding_dimensions:
                 return f"Your embedding configuration will produce vectors with dimension {self.embedding_dimensions:d}, but your collection is configured with dimension {actual_dimension:d}. Make sure embedding and indexing configurations match."
         except Exception as e:
+            if isinstance(e, urllib3.exceptions.MaxRetryError):
+                if f"Failed to resolve '{self.config.astra_db_id}-{self.config.astra_db_region}.apps.astra.datastax.com" in str(e.reason):
+                    return "Failed to resolve environment, please check whether the credential is correct."
+
             formatted_exception = format_exception(e)
             return formatted_exception
         return None
