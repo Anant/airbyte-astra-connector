@@ -35,8 +35,11 @@ class AstraIndexer(Indexer):
         self.embedding_dimensions = embedding_dimensions
 
     def _create_collection(self):
-        if self.client.find_collection(self.config.collection) is False:
-            self.client.create_collection(self.config.collection)
+        try:
+            if self.client.find_collection(self.config.collection) is False:
+                self.client.create_collection(self.config.collection)
+        except Exception:
+            return None
 
     def pre_sync(self, catalog: ConfiguredAirbyteCatalog):
         self._create_collection()

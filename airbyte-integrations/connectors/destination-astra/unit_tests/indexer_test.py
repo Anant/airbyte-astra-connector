@@ -2,18 +2,22 @@
 # Copyright (c) 2023 Airbyte, Inc., all rights reserved.
 #
 
-from unittest.mock import ANY, MagicMock, Mock, call, patch
-import uuid
+from unittest.mock import ANY, MagicMock, Mock, patch
 import pytest
 import urllib3
 from airbyte_cdk.models import ConfiguredAirbyteCatalog
 from destination_astra.config import AstraIndexingModel
 from destination_astra.indexer import AstraIndexer
-from destination_astra.astra_client import AstraClient
 
 
 def create_astra_indexer():
-    config = AstraIndexingModel(astra_db_id="", astra_db_region="", astra_db_keyspace="", collection="")
+    config = AstraIndexingModel(
+        astra_db_app_token="mytoken",
+        astra_db_id="myid",
+        astra_db_region="myregion",
+        astra_db_keyspace="mykeyspace",
+        collection="mycollection",
+    )
     indexer = AstraIndexer(config, 3)
 
     indexer.client.delete_documents = MagicMock()
@@ -26,14 +30,7 @@ def create_index_description(dimensions=3):
     return {"name": "", "options": {"vector": {"dimension": dimensions, "metric": "cosine"}}}
 
 
-@pytest.fixture(scope="module", autouse=True)
-def mock_describe_index():
-    with patch("astra.describe_index") as mock:
-        mock.return_value = create_index_description()
-        yield mock
-
-
-def test_astra_index_upsert_and_delete(mock_describe_index):
+def test_astra_index_upsert_and_delete():
     indexer = create_astra_indexer()
     indexer.index(
         [
@@ -45,13 +42,13 @@ def test_astra_index_upsert_and_delete(mock_describe_index):
     )
     indexer.delete(["delete_id1", "delete_id2"], "ns1", "some_stram")
     indexer.client.delete_documents.assert_called_with(
-        collection_name="", filter={"_ab_record_id": {"$in": ["delete_id1", "delete_id2"]}}, namespace="ns1"
+        collection_name="mycollection", filter={"_ab_record_id": {"$in": ["delete_id1", "delete_id2"]}}
     )
     indexer.client.insert_documents.assert_called_with(
-        collection_name="",
+        collection_name="mycollection",
         documents=[
-            {"_id": str(uuid.uuid4()), "$vector": [1, 2, 3], "_ab_stream": "abc", "text": "test"},
-            {"_id": str(uuid.uuid4()), "$vector": [4, 5, 6], "_ab_stream": "abc", "text": "test2"},
+            {"_id": ANY, "$vector": [1, 2, 3], "_ab_stream": "abc", "text": "test"},
+            {"_id": ANY, "$vector": [4, 5, 6], "_ab_stream": "abc", "text": "test2"},
         ],
     )
 
@@ -70,19 +67,28 @@ def test_astra_index_upsert_batching():
         "ns1",
         "some_stream",
     )
-    assert indexer.client.insert_documents.call_count == 2
-    for i in range(40):
-        assert indexer.client.insert_documents.call_args_list[0].kwargs["vectors"][i] == (
-            ANY,
-            [i, i, i],
-            {"_ab_stream": "abc", "text": f"test {i}"},
-        )
+    assert indexer.client.insert_documents.call_count == 3
+    for i in range(20):
+        assert indexer.client.insert_documents.call_args_list[0].kwargs.get("documents")[i] == {
+            "_id": ANY,
+            "$vector": [i, i, i],
+            "_ab_stream": "abc",
+            "text": f"test {i}",
+        }
+    for i in range(20, 40):
+        assert indexer.client.insert_documents.call_args_list[1].kwargs.get("documents")[i - 20] == {
+            "_id": ANY,
+            "$vector": [i, i, i],
+            "_ab_stream": "abc",
+            "text": f"test {i}",
+        }
     for i in range(40, 50):
-        assert indexer.client.insert_documents.call_args_list[1].kwargs["vectors"][i - 40] == (
-            ANY,
-            [i, i, i],
-            {"_ab_stream": "abc", "text": f"test {i}"},
-        )
+        assert indexer.client.insert_documents.call_args_list[2].kwargs.get("documents")[i - 40] == {
+            "_id": ANY,
+            "$vector": [i, i, i],
+            "_ab_stream": "abc",
+            "text": f"test {i}",
+        }
 
 
 def generate_catalog():
@@ -120,7 +126,7 @@ def generate_catalog():
     )
 
 
-def test_astra_pre_sync(mock_describe_index):
+def test_astra_pre_sync():
     indexer = create_astra_indexer()
     indexer.pre_sync(generate_catalog())
     indexer.client.delete_documents.assert_called_with(filter={"_ab_stream": "ns2_example_stream2"}, namespace="ns2")
