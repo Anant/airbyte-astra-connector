@@ -1,7 +1,6 @@
 #
 # Copyright (c) 2023 Airbyte, Inc., all rights reserved.
 #
-
 from unittest.mock import ANY, MagicMock, Mock, patch
 import pytest
 import urllib3
@@ -23,11 +22,12 @@ def create_astra_indexer():
     indexer.client.delete_documents = MagicMock()
     indexer.client.insert_documents = MagicMock()
     indexer.client.find_documents = MagicMock()
+
     return indexer
 
 
-def create_index_description(dimensions=3):
-    return {"name": "", "options": {"vector": {"dimension": dimensions, "metric": "cosine"}}}
+def create_index_description(collection_name, dimensions):
+    return {"name": collection_name, "options": {"vector": {"dimension": dimensions, "metric": "cosine"}}}
 
 
 def test_astra_index_upsert_and_delete():
@@ -128,37 +128,41 @@ def generate_catalog():
 
 def test_astra_pre_sync():
     indexer = create_astra_indexer()
+    indexer.client.find_collection = MagicMock(collection_name="")
+    indexer.client.find_collection.return_value = True
+
     indexer.pre_sync(generate_catalog())
-    indexer.client.delete_documents.assert_called_with(filter={"_ab_stream": "ns2_example_stream2"}, namespace="ns2")
+    indexer.client.delete_documents.assert_called_with(collection_name="mycollection", filter={"_ab_stream": "ns2_example_stream2"})
 
 
 @pytest.mark.parametrize(
-    "index_list, describe_throws,reported_dimensions,check_succeeds, error_message",
+    "collection_name,describe_throws,reported_dimensions,check_succeeds,error_message",
     [
-        (["myindex"], None, 3, True, None),
-        (["other_index"], None, 3, False, "Index myindex does not exist in environment"),
+        ("mycollection", None, 3, True, None),
+        ("other_collection", None, 3, False, "mycollection collection does not exist."),
         (
-            ["myindex"],
-            urllib3.exceptions.MaxRetryError(None, "", reason=Exception("Failed to resolve 'apps.astra.datastax.com'")),
+            ["mycollection"],
+            urllib3.exceptions.MaxRetryError(None, "", reason=Exception("Failed to resolve environment, please check whether the credential is correct.")),
             3,
             False,
             "Failed to resolve environment",
         ),
-        (["myindex"], None, 4, False, "Make sure embedding and indexing configurations match."),
-        (["myindex"], Exception("describe failed"), 3, False, "describe failed"),
-        (["myindex"], Exception("describe failed"), 4, False, "describe failed"),
+        ("mycollection", None, 4, False, "Make sure embedding and indexing configurations match."),
+        ("mycollection", Exception("describe failed"), 3, False, "describe failed"),
+        ("mycollection", Exception("describe failed"), 4, False, "describe failed"),
     ],
 )
-@patch("astra.describe_index")
-@patch("astra.list_indexes")
-def test_astra_check(list_mock, describe_mock, index_list, describe_throws, reported_dimensions, check_succeeds, error_message):
+def test_astra_check(collection_name, describe_throws, reported_dimensions, check_succeeds, error_message):
     indexer = create_astra_indexer()
-    indexer.embedding_dimensions = 3
+
+    indexer.client.find_collections = MagicMock()
+    indexer.client.find_collections.return_value = [create_index_description(collection_name=collection_name, dimensions=reported_dimensions)]
+
     if describe_throws:
-        describe_mock.side_effect = describe_throws
+        indexer.client.find_collections.side_effect = describe_throws
     else:
-        describe_mock.return_value = create_index_description(dimensions=reported_dimensions)
-    list_mock.return_value = index_list
+        indexer.client.find_collections.return_value = [create_index_description(collection_name=collection_name, dimensions=reported_dimensions)]
+
     result = indexer.check()
     if check_succeeds:
         assert result is None
