@@ -52,6 +52,7 @@ python main.py read --config secrets/config.json --catalog integration_tests/con
 #### Use `airbyte-ci` to build your connector
 The Airbyte way of building this connector is to use our `airbyte-ci` tool.
 You can follow install instructions [here](https://github.com/airbytehq/airbyte/blob/master/airbyte-ci/connectors/pipelines/README.md#L1).
+On macOS and Linux airbyte-ci will install in your home directory at `/home/username/.local/bin`. Make sure this directory is added to your PATH.
 Then running the following command will build your connector:
 
 ```bash
