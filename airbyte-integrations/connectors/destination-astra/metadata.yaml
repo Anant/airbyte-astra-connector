@@ -21,7 +21,7 @@ data:
   icon: astra.svg
   license: MIT
   name: Astra
-  releaseDate: TODO
+  releaseDate: 2024-01-10
   releaseStage: alpha
   supportLevel: community
   documentationUrl: https://docs.airbyte.com/integrations/destinations/astra
