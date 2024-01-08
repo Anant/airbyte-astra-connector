@@ -25,7 +25,11 @@ class AstraIndexingModel(BaseModel):
         description="AstraDB Region",
         examples=["us-east1"],
     )
-    astra_db_keyspace: str = Field(..., title="AstraDB Keyspace", description="Astra DB Keyspace")
+    astra_db_keyspace: str = Field(
+        ..., 
+        title="AstraDB Keyspace", 
+        description="Astra DB Keyspace"
+        )
     collection: str = Field(
         ...,
         title="AstraDB collection",
