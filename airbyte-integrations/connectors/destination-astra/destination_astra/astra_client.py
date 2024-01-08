@@ -137,6 +137,12 @@ class AstraClient:
 
         return result["status"]
 
+    def count_documents(self, collection_name: str):
+        query = {"countDocuments": {}}
+        result = self._run_query(self._build_collection_query(collection_name), query)
+
+        return result["status"]["count"]
+
     def delete_documents(self, collection_name: str, filter: Dict) -> int:
         query = {"deleteMany": {"filter": filter}}
         result = self._run_query(self._build_collection_query(collection_name), query)
