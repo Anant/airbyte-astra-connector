@@ -8,6 +8,10 @@ from airbyte_cdk.destinations.vector_db_based.test_utils import BaseIntegrationT
 from airbyte_cdk.models import DestinationSyncMode, Status
 from destination_astra.destination import DestinationAstra
 
+from destination_astra.astra_client import AstraClient
+from destination_astra.config import ConfigModel
+from airbyte_cdk.destinations.vector_db_based.embedder import create_from_config
+
 
 class AstraIntegrationTest(BaseIntegrationTest):
 
@@ -24,4 +28,27 @@ class AstraIntegrationTest(BaseIntegrationTest):
             logging.getLogger("airbyte"), invalid_config)
         assert outcome.status == Status.FAILED
 
+    def test_write(self):
+        db_config = ConfigModel.parse_obj(self.config)
+        embedder = create_from_config(db_config.embedding, db_config.processing)
+        db_creds = db_config.indexing
+        astra_client = AstraClient(
+            db_creds.astra_db_id, 
+            db_creds.astra_db_region, 
+            db_creds.astra_db_app_token, 
+            db_creds.astra_db_keyspace, 
+            embedder.embedding_dimensions, 
+            "cosine"
+        )
+
+        astra_client.delete_documents(collection_name=db_creds.collection, filter={})
+        assert astra_client.count_documents(db_creds.collection) == 0
+
+        catalog = self._get_configured_catalog(DestinationSyncMode.overwrite)
+
+        message1 = self._record("mystream", "text data 1", 1)
+        message2 = self._record("mystream", "text data 2", 2)
+
+        outcome = list(DestinationAstra().write(self.config, catalog, [message1, message2]))
+        assert astra_client.count_documents(db_creds.collection) == 2
 
